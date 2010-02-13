@@ -2,13 +2,13 @@
 
 /**
  * AS2Secure - PHP Lib for AS2 message encoding / decoding
- * 
+ *
  * @author  Sebastien MALOT <contact@as2secure.com>
- * 
+ *
  * @copyright Copyright (c) 2010, Sebastien MALOT
- * 
+ *
  * Last release at : {@link http://www.as2secure.com}
- * 
+ *
  * This file is part of AS2Secure Project.
  *
  * AS2Secure is free software: you can redistribute it and/or modify
@@ -23,19 +23,26 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with AS2Secure.
- * 
+ *
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.7.1
- * 
+ * @version 0.7.2
+ *
  */
 
 class AS2Adapter {
-    public static $sslpath = 'openssl';
+    /**
+     * Allow to specify full path to main applications
+     * for overriding PATH usage
+     */
+    public static $sslpath  = 'openssl';
     public static $javapath = 'java';
     
     protected $partner_from = null;
-    protected $partner_to = null;
+    protected $partner_to   = null;
     
+    /**
+     * Array to store temporary files created and scheduled to unlink
+     */
     protected static $tmp_files = null;
     
     public function __construct($partner_from, $partner_to){
@@ -205,6 +212,15 @@ class AS2Adapter {
         }
     }
 
+    /**
+     * Encrypt a mimepart
+     *
+     * @param mime_part $mime_part      The mimepart to encrypt
+     * @param string    $cypher         The Cypher to use for encryption
+     *
+     * @return mime_part                The mimepart message encrypted
+     *
+     */
     public function encrypt($mime_part, $cypher = 'des3'){
         $input_tmp = self::getTempFilename();
         $output = self::getTempFilename();
@@ -224,6 +240,13 @@ class AS2Adapter {
         return $cmime_part;
     }
 
+    /**
+     * Decrypt a message
+     * 
+     * @param string $input          The file to decrypt
+     *
+     * @return string                The file decrypted
+     */
     public function decrypt($input){
         $output = self::getTempFilename();
 
@@ -497,7 +520,104 @@ class AS2Adapter {
      * @return string       The mimetype
      */
     public static function detectMimeType($file) {
-        return $mime_type = trim(exec('file -b -i '.escapeshellarg($file)));
+        // for old PHP (deprecated)
+        if (function_exists('mime_content_type'))
+            return mime_content_type($file);
+
+        // for PHP > 5.3.0 / PECL FileInfo > 0.1.0
+        if (function_exists('finfo_file')){
+            $finfo = finfo_open(FILEINFO_MIME);
+            $mimetype = finfo_file($finfo, $file);
+            finfo_close($finfo);
+            return $mimetype;
+        }
+
+        $os = self::detectOS();
+        // for Unix OS : command line
+        if ($os == 'UNIX') {
+            $mimetype = trim(exec('file -b -i '.escapeshellarg($file)));
+            $parts = explode(';', $mimetype);
+            return trim($parts[0]);
+        }
+        
+        // fallback for Windows and Others OS
+        // source code found at : 
+        // @link http://fr2.php.net/manual/en/function.mime-content-type.php#87856
+        $mime_types = array(
+            'txt' => 'text/plain',
+            'htm' => 'text/html',
+            'html' => 'text/html',
+            'php' => 'text/html',
+            'css' => 'text/css',
+            'js' => 'application/javascript',
+            'json' => 'application/json',
+            'xml' => 'application/xml',
+            'swf' => 'application/x-shockwave-flash',
+            'flv' => 'video/x-flv',
+
+            // images
+            'png' => 'image/png',
+            'jpe' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'jpg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'bmp' => 'image/bmp',
+            'ico' => 'image/vnd.microsoft.icon',
+            'tiff' => 'image/tiff',
+            'tif' => 'image/tiff',
+            'svg' => 'image/svg+xml',
+            'svgz' => 'image/svg+xml',
+
+            // archives
+            'zip' => 'application/zip',
+            'rar' => 'application/x-rar-compressed',
+            'exe' => 'application/x-msdownload',
+            'msi' => 'application/x-msdownload',
+            'cab' => 'application/vnd.ms-cab-compressed',
+
+            // audio/video
+            'mp3' => 'audio/mpeg',
+            'qt' => 'video/quicktime',
+            'mov' => 'video/quicktime',
+
+            // adobe
+            'pdf' => 'application/pdf',
+            'psd' => 'image/vnd.adobe.photoshop',
+            'ai' => 'application/postscript',
+            'eps' => 'application/postscript',
+            'ps' => 'application/postscript',
+
+            // ms office
+            'doc' => 'application/msword',
+            'rtf' => 'application/rtf',
+            'xls' => 'application/vnd.ms-excel',
+            'ppt' => 'application/vnd.ms-powerpoint',
+
+            // open office
+            'odt' => 'application/vnd.oasis.opendocument.text',
+            'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
+        );
+
+        $ext = strtolower(array_pop(explode('.',$filename)));
+        if (array_key_exists($ext, $mime_types)) {
+            return $mime_types[$ext];
+        }
+        else {
+            return 'application/octet-stream';
+        }
+    }
+
+    /**
+     * Determinate the Server OS
+     *
+     * @return string    The OS : WIN | UNIX | OTHER
+     *
+     */
+    public static function detectOS() {
+        $os = php_uname('s');
+        if (stripos($os, 'win') !== false) return 'WIN';
+        if (stripos($os, 'linux') !== false || stripos($os, 'unix') !== false) return 'UNIX';
+        return 'OTHER';
     }
 }
 

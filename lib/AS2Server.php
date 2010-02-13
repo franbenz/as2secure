@@ -25,7 +25,7 @@
  * along with AS2Secure.
  *
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.7.1
+ * @version 0.7.2
  *
  */
 
@@ -39,7 +39,7 @@ if( !function_exists('apache_request_headers') ) {
 
         foreach($_SERVER as $key => $value){
             if (strpos('HTTP_', $key) === 0){
-                $key = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($key, 5))))); 
+                $key = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($key, 5)))));
                 $headers[$key] = $value;
             }
         }
