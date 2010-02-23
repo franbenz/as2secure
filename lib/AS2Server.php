@@ -25,7 +25,7 @@
  * along with AS2Secure.
  *
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.7.2
+ * @version 0.8.0
  *
  */
 
@@ -60,7 +60,7 @@ class AS2Server {
     {
         try {
             $error = null;
-
+            
             if (is_null($request)){
                 // content loading
                 $data = file_get_contents('php://input');
@@ -69,7 +69,7 @@ class AS2Server {
                 // headers loading
                 $headers = apache_request_headers();
                 if (!$headers) throw new AS2Exception('An empty AS2 message (no headers) was received, the message will be suspended.');
-    
+                
                 // check content of headers
                 $headers_lower = array_change_key_case($headers);
                 if (!in_array('message-id', array_keys($headers_lower))) throw new AS2Exception('A malformed AS2 message (no message-id) was received, the message will be suspended.');
@@ -233,7 +233,7 @@ class AS2Server {
      */
     protected static function saveMessage($content, $headers, $filename = '', $type = 'raw'){
         umask(000);
-        $dir = '../messages/_rawincoming';
+        $dir = AS2_DIR_MESSAGES . '_rawincoming';
         @mkdir($dir, 0777, true);
         
         if (!$filename) {

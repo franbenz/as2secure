@@ -25,7 +25,7 @@
  * along with AS2Secure.
  * 
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.7.2
+ * @version 0.8.0
  * 
  */
 
@@ -94,6 +94,8 @@ class AS2Request extends AS2Abstract {
         $content .= "\n" . file_get_contents($this->getPath());
         $input = AS2Adapter::getTempFilename();
         file_put_contents($input, $content);
+        
+        //$input = $this->getPath();
 
         // setup of mailmime decoder
         $params = array('include_bodies' => false,
@@ -111,10 +113,10 @@ class AS2Request extends AS2Abstract {
         if (strtolower($mimetype) == 'application/pkcs7-mime'){
             try {
                 // rewrite message
-                $content   = file_get_contents($input);
+                /*$content   = file_get_contents($input);
                 $mime_part = Horde_MIME_Structure::parseTextMIMEMessage($content);
                 $input     = AS2Adapter::getTempFilename();
-                file_put_contents($input, $mime_part->toString(true));
+                file_put_contents($input, $mime_part->toString(true));*/
 
                 AS2Log::info(false, 'AS2 message is encrypted.');
                 $input = $this->adapter->decrypt($input);
@@ -138,26 +140,13 @@ class AS2Request extends AS2Abstract {
             try {
                 AS2Log::info(false, 'AS2 message is signed.');
 
-                $verified = $this->adapter->verify($input);
-
-                AS2Log::info(false, 'The sender used the algorithm "'.$structure->ctype_parameters['micalg'].'" to sign the message.');
-
-                // get MicChecksum from signature
-                $mic_sign = AS2Adapter::getMicChecksum($input);
-                //echo $mic_sign."\n";
-
-                // override input file with only signed content
-                $input = $this->adapter->extract($input);
+                $input = $this->adapter->verify($input);
                 $signed = true;
 
-                // calculate MicChecksum from extracted content
-                $mic_calc = AS2Adapter::calculateMicChecksum($input);
-                //echo $mic_calc."\n";
+                // get MicChecksum from signature
+                $mic = AS2Adapter::getMicChecksum($input);
 
-                if ($mic_sign != $mic_calc)
-                    throw new AS2Exception('An error occurs while checking integrity message.');
-                    
-                $mic = $mic_sign;
+                AS2Log::info(false, 'The sender used the algorithm "'.$structure->ctype_parameters['micalg'].'" to sign the message.');
 
                 // reload extracted content to get mimetype
                 $decoder   = new Mail_mimeDecode(file_get_contents($input));

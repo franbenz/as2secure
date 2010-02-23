@@ -25,7 +25,7 @@
  * along with AS2Secure.
  * 
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.7.2
+ * @version 0.8.0
  * 
  */
 
@@ -38,9 +38,11 @@ class AS2Partner {
     protected $comment  = '';
     
     // security
-    protected $sec_public_key           = '';
-    protected $sec_private_key          = '';
-    protected $sec_trusted_certificates = '';
+    protected $sec_pkcs12               = ''; // must contain private/certificate/ca chain
+    protected $sec_pkcs12_password      = '';
+    
+    protected $sec_certificate          = ''; // must contain certificate/ca chain
+    
     protected $sec_signature_algorithm  = self::SIGN_SHA1;
     protected $sec_encrypt_algorithm    = self::CRYPT_3DES;
     
@@ -83,6 +85,7 @@ class AS2Partner {
     // 
     const SIGN_NONE = 'none';
     const SIGN_SHA1 = 'sha1';
+    const SIGN_MD5  = 'md5';
     
     // http://www.openssl.org/docs/apps/enc.html#SUPPORTED_CIPHERS
     const CRYPT_NONE    = 'none';

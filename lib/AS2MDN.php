@@ -25,7 +25,7 @@
  * along with AS2Secure.
  * 
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.7.2
+ * @version 0.8.0
  * 
  */
 
@@ -141,7 +141,7 @@ class AS2MDN extends AS2Abstract {
 
         // second part
         $lines = array();
-        $lines['Reporting-UA']          = $this->getAttribute('reporting-ua');
+        $lines['Reporting-UA']          = 'AS2Secure Php Lib';//$this->getAttribute('reporting-ua');
         if ($this->getPartnerFrom()) {
             $lines['Original-Recipient']    = 'rfc822; ' . $this->getPartnerFrom()->id;
             $lines['Final-Recipient']       = $this->getAttribute('original-recipient');
@@ -159,14 +159,13 @@ class AS2MDN extends AS2Abstract {
         $mdn = new Horde_MIME_Part('message/disposition-notification', $content, MIME_DEFAULT_CHARSET, null, '7bit');
         $container->addPart($mdn);
         
-        // signing if requested
-        if ($message && $message->getHeader('Disposition-Notification-Options')) {
-            $container = $this->adapter->sign($container);
-        }
-
         $this->path = AS2Adapter::getTempFilename();
         file_put_contents($this->path, $container->toString());
-        //echo file_get_contents($this->path);
+        
+        // signing if requested
+        if ($message && $message->getHeader('Disposition-Notification-Options')) {
+            $this->path = $this->adapter->sign($this->path);
+        }
 
         $this->setMessageId(self::generateMessageID($this->getPartnerFrom()));
 

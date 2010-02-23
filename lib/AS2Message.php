@@ -25,7 +25,7 @@
  * along with AS2Secure.
  * 
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.7.2
+ * @version 0.8.0
  * 
  */
 
@@ -105,6 +105,7 @@ class AS2Message extends AS2Abstract {
         $files = $this->getFiles();
         
         // initial message creation : mime_part
+        // TODO : use adapter to build multipart file
         try {
             // managing all files (parts)
             $parts = array();
@@ -125,6 +126,9 @@ class AS2Message extends AS2Abstract {
                 // handling mono part (body)
                 $mime_part = $parts[0];
             }
+            
+            $file = AS2Adapter::getTempFilename();
+            file_put_contents($file, $mime_part->toString());
         }
         catch(Exception $e) {
             throw $e;
@@ -134,11 +138,10 @@ class AS2Message extends AS2Abstract {
         // signing file if wanted by Partner_To
         if ($this->getPartnerTo()->sec_signature_algorithm != AS2Partner::SIGN_NONE) {
             try {
-                $mime_part = $this->adapter->sign($mime_part);
+                $file = $this->adapter->sign($file, true, 'base64');
                 $this->is_signed = true;
-                $mic_tmp = AS2Adapter::getTempFilename();
-                file_put_contents($mic_tmp, $mime_part->toString());
-                $this->mic_checksum = AS2Adapter::getMicChecksum($mic_tmp);
+
+                $this->mic_checksum = AS2Adapter::getMicChecksum($file);
             }
             catch(Exception $e) {
                 throw $e;
@@ -149,7 +152,7 @@ class AS2Message extends AS2Abstract {
         // crypting file if wanted by Partner_To
         if ($this->getPartnerTo()->sec_encrypt_algorithm   != AS2Partner::CRYPT_NONE) {
             try {
-                $mime_part = $this->adapter->encrypt($mime_part);
+                $file = $this->adapter->encrypt($file);
                 $this->is_crypted = true;
             }
             catch(Exception $e) {
@@ -158,13 +161,13 @@ class AS2Message extends AS2Abstract {
             }
         }
 
-        $this->path = AS2Adapter::getTempFilename();
-        if ($mime_part->getTransferEncoding() == 'base64'){
+        $this->path = $file;
+        /*if ($mime_part->getTransferEncoding() == 'base64'){
             file_put_contents($this->path, base64_decode($mime_part->toString(false)));
         }
         else{
             file_put_contents($this->path, $mime_part->toString());
-        }
+        }*/
 
         // headers setup
         $headers = array(
@@ -243,7 +246,7 @@ class AS2Message extends AS2Abstract {
         $partner    = $this->getPartnerTo()->id;
         $mic        = $this->getMicChecksum();
 
-        $mdn->setAttribute('Reporting-UA', 'AS2Secure Php Lib');
+        //$mdn->setAttribute('Reporting-UA', 'AS2Secure Php Lib');
         $mdn->setAttribute('Original-Recipient', 'rfc822; '.$partner);
         $mdn->setAttribute('Final-Recipient', 'rfc822; '.$partner);
         $mdn->setAttribute('Original-Message-ID', $message_id);
