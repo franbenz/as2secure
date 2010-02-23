@@ -47,13 +47,14 @@ class AS2Partner {
     protected $sec_encrypt_algorithm    = self::CRYPT_3DES;
     
     // sending data
-    protected $send_compress            = false; // not implemented
+    protected $send_compress            = false;
     protected $send_url                 = ''; // full url including "http://" or "https://"
     protected $send_subject             = 'AS2 Message Subject';
     protected $send_content_type        = 'application/EDI-Consent';
     protected $send_credencial_method   = self::METHOD_NONE;
     protected $send_credencial_login    = '';
     protected $send_credencial_password = '';
+    protected $send_encoding            = self::ENCODING_BASE64;
     
     // notification process
     protected $mdn_url                  = '';
@@ -77,6 +78,10 @@ class AS2Partner {
     const METHOD_DIGECT = CURLAUTH_DIGEST;
     const METHOD_NTLM   = CURLAUTH_NTLM;
     const METHOD_GSS    = CURLAUTH_GSSNEGOTIATE;
+    
+    // transfert content encoding
+    const ENCODING_BASE64 = 'base64';
+    const ENCODING_BINARY = 'binary';
     
     // ack methods
     const ACK_SYNC  = 'SYNC';
@@ -141,6 +146,8 @@ class AS2Partner {
     {
         if ($partner_id instanceof AS2Partner)
             return $partner_id;
+        
+        $partner_id = trim($partner_id, '"');
         
         // existance file check (caution : Partner name is case sensitive)
         $conf = AS2_DIR_PARTNERS.basename($partner_id).'.conf';

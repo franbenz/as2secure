@@ -181,7 +181,7 @@ class AS2MDN extends AS2Abstract {
 
         if ($this->getPartnerFrom()) {
             $headers_from = array(
-                 'AS2-From'                     => $this->getPartnerFrom()->id,
+                 'AS2-From'                     => '"' . $this->getPartnerFrom()->id . '"',
                  'From'                         => $this->getPartnerFrom()->email,
                  'Subject'                      => $this->getPartnerFrom()->mdn_subject,
                  'Disposition-Notification-To'  => $this->getPartnerFrom()->send_url,
@@ -191,7 +191,7 @@ class AS2MDN extends AS2Abstract {
 
         if ($this->getPartnerTo()) {
             $headers_to = array(
-                 'AS2-To'                       => $this->getPartnerTo()->id,
+                 'AS2-To'                       => '"' . $this->getPartnerTo()->id . '"',
                  'Recipient-Address'            => $this->getPartnerTo()->send_url,
             );
             $headers = array_merge($headers, $headers_to);

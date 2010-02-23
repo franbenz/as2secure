@@ -29,24 +29,6 @@
  *
  */
 
-/**
- * Fix to get request headers from Apache even on PHP running as a CGI
- *
- */
-if( !function_exists('apache_request_headers') ) {
-    function apache_request_headers() {
-        $headers = array();
-
-        foreach($_SERVER as $key => $value){
-            if (strpos('HTTP_', $key) === 0){
-                $key = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($key, 5)))));
-                $headers[$key] = $value;
-            }
-        }
-
-        return $headers;
-    }
-}
 
 class AS2Server {
     /**
@@ -67,25 +49,24 @@ class AS2Server {
                 if (!$data) throw new AS2Exception('An empty AS2 message (no content) was received, the message will be suspended.');
                 
                 // headers loading
-                $headers = apache_request_headers();
-                if (!$headers) throw new AS2Exception('An empty AS2 message (no headers) was received, the message will be suspended.');
+                $headers = AS2Header::parseHttpRequest();
+                if (!count($headers)) throw new AS2Exception('An empty AS2 message (no headers) was received, the message will be suspended.');
                 
                 // check content of headers
-                $headers_lower = array_change_key_case($headers);
-                if (!in_array('message-id', array_keys($headers_lower))) throw new AS2Exception('A malformed AS2 message (no message-id) was received, the message will be suspended.');
-                if (!in_array('as2-from', array_keys($headers_lower)))   throw new AS2Exception('An AS2 message was received that did not contain the AS2-From header.');
-                if (!in_array('as2-to', array_keys($headers_lower)))     throw new AS2Exception('An AS2 message was received that did not contain the AS2-To header.');
+                if (!$headers->exists('message-id')) throw new AS2Exception('A malformed AS2 message (no message-id) was received, the message will be suspended.');
+                if (!$headers->exists('as2-from'))   throw new AS2Exception('An AS2 message was received that did not contain the AS2-From header.');
+                if (!$headers->exists('as2-to'))     throw new AS2Exception('An AS2 message was received that did not contain the AS2-To header.');
     
                 // main save action
                 $filename = self::saveMessage($data, $headers);
                 
                 // request building
-                $request = new AS2Request($data, $headers);
+                $request = new AS2Request($data, $headers->getHeaders()); // TODO : implement AS2Header into AS2Request
                 
                 // warning / notification
-                if (trim($request->getHeader('as2-from')) == trim($request->getHeader('as2-to'))) AS2Log::warning($request->getHeader('message-id'), 'The AS2-To name is identical to the AS2-From name.');
+                if (trim($headers->getHeader('as2-from')) == trim($headers->getHeader('as2-to'))) AS2Log::warning($headers->getHeader('message-id'), 'The AS2-To name is identical to the AS2-From name.');
                 // log some informations
-                AS2Log::info($request->getHeader('message-id'), 'Incoming transmission is a AS2 message, raw message size: ' . round(strlen($data)/1024, 2) . ' KB.');
+                AS2Log::info($headers->getHeader('message-id'), 'Incoming transmission is a AS2 message, raw message size: ' . round(strlen($data)/1024, 2) . ' KB.');
                 
                 // try to decrypt data
                 $decrypted = $request->decrypt();
@@ -133,18 +114,18 @@ class AS2Server {
                 }
             }
             catch(Exception $e){
-                $params = array('partner_from' => $headers_lower['as2-from'],
-                                'partner_to'   => $headers_lower['as2-to']);
+                $params = array('partner_from' => $headers->getHeader('as2-from'),
+                                'partner_to'   => $headers->getHeader('as2-to'));
                 $mdn = new AS2MDN($e);
-                $mdn->setAttribute('original-message-id', $headers_lower['message-id']);
+                $mdn->setAttribute('original-message-id', $headers->getHeader('message-id'));
                 $mdn->encode();
             }
             
             if ($mdn){
-                if (!$headers_lower['receipt-delivery-option']) {
+                if (!$headers->getHeader('receipt-delivery-option')) {
                     // SYNC method
-                    $headers = $mdn->getHeaders();
-                    foreach($headers as $key => $value)
+                    $mdn_headers = $mdn->getHeaders();
+                    foreach($mdn_headers as $key => $value)
                         header($key.': '.$value);
                     echo $mdn->getContent();
                     AS2Log::info(false, 'An AS2 MDN has been sent.');
@@ -190,8 +171,8 @@ class AS2Server {
     
         if ($request instanceof AS2Request) {
             // build arguments
-            $params = array('from'   => $headers_lower['as2-from'],
-                            'to'     => $headers_lower['as2-to'],
+            $params = array('from'   => $headers->getHeader('as2-from'),
+                            'to'     => $headers->getHeader('as2-to'),
                             'status' => '',
                             'data'   => '');
             if ($error) {
@@ -246,12 +227,8 @@ class AS2Server {
         switch($type){
             case 'raw':
                 file_put_contents($dir . '/' . $filename, $content);
-                $tmp = '';
-                if (is_array($headers)){
-                    foreach($headers as $key => $value){
-                        $tmp .= $key . ': ' . $value . "\r\n";
-                    }
-                    file_put_contents($dir . '/' . $filename . '.header', $tmp);
+                if (count($headers)){
+                    file_put_contents($dir . '/' . $filename . '.header', $headers);
                 }
                 break;
                 

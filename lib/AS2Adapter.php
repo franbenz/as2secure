@@ -97,6 +97,7 @@ class AS2Adapter {
             $command = self::$javapath.' -jar '.escapeshellarg(AS2_DIR_BIN.self::$ssl_adapter).
                                        ' extract'.
                                        ' -in '.escapeshellarg($input);
+                                       ' -out '.escapeshellarg($output);
             
             $result = self::exec($command, true);
             
@@ -105,6 +106,8 @@ class AS2Adapter {
             
             foreach($results as $tmp){
                 $tmp = explode(';', $tmp);
+                if (count($tmp) == 0) continue;
+                if (count($tmp) != 3) throw new AS2Exception("Unexpected data structure while extracting message");
                 
                 $file = array();
                 $file['path']     = trim($tmp[0], '"');
@@ -447,6 +450,18 @@ class AS2Adapter {
         $filename = tempnam($dir, 'as2file_');
         self::$tmp_files[] = $filename;
         return $filename;
+    }
+    
+    /**
+     * Schedule file for deletion
+     * 
+     */
+    public static function addTempFileForDelete($file) {
+        if (is_null(self::$tmp_files)){
+            self::$tmp_files = array();
+            register_shutdown_function(array("AS2Adapter", "_deleteTempFiles"));
+        }
+        self::$tmp_files[] = $file;
     }
     
     /**

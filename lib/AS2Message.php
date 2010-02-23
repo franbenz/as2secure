@@ -138,7 +138,7 @@ class AS2Message extends AS2Abstract {
         // signing file if wanted by Partner_To
         if ($this->getPartnerTo()->sec_signature_algorithm != AS2Partner::SIGN_NONE) {
             try {
-                $file = $this->adapter->sign($file, true, 'base64');
+                $file = $this->adapter->sign($file, $this->getPartnerTo()->send_compress, $this->getPartnerTo()->send_encoding);
                 $this->is_signed = true;
 
                 $this->mic_checksum = AS2Adapter::getMicChecksum($file);
@@ -171,8 +171,8 @@ class AS2Message extends AS2Abstract {
 
         // headers setup
         $headers = array(
-             'AS2-From'                     => $this->getPartnerFrom()->id,
-             'AS2-To'                       => $this->getPartnerTo()->id,
+             'AS2-From'                     => '"' . $this->getPartnerFrom()->id . '"',
+             'AS2-To'                       => '"' . $this->getPartnerTo()->id . '"',
              'AS2-Version'                  => '1.0',
              'From'                         => $this->getPartnerFrom()->email,
              'Subject'                      => $this->getPartnerFrom()->send_subject,
@@ -208,35 +208,15 @@ class AS2Message extends AS2Abstract {
     }
     
     public function decode() {
-        $this->files = array();
+        $this->files = $this->adapter->extract($this->getPath());
         
-        $content = file_get_contents($this->getPath());
-        $params = array('include_bodies' => true,
-                        'decode_bodies'  => true,
-                        'decode_headers' => true);
-        $decoder = new Mail_mimeDecode($content);
-        $structure = $decoder->decode($params);
+        // schedule file deletion
+        foreach($this->files as $file)
+            AS2Adapter::addTempFileForDelete($file['path']);
         
-        if (strtolower($structure->ctype_primary) == 'multipart'){
-            foreach($structure->parts as $index => $part){
-                $tmp = AS2Adapter::getTempFilename();
-                file_put_contents($tmp, $part->body);
-                $this->files[] = array('path'     => $tmp,
-                                       'filename' => $part->ctype_parameters['name'],
-                                       'mimetype' => $part->ctype_primary.'/'.$part->ctype_secondary);
-                //echo $part->ctype_parameters['name']."\n";
-                //echo strlen($part->body)."\n";
-            }
-        }
-        else {
-            $tmp = AS2Adapter::getTempFilename();
-            file_put_contents($tmp, $structure->body);
-            $this->files[] = array('path'     => $tmp,
-                                   'filename' => $structure->ctype_parameters['name'],
-                                   'mimetype' => $structure->ctype_primary.'/'.$structure->ctype_secondary);
-        }
-
         //echo 'nb payloads : '.count($this->files);
+        
+        return true;
     }
     
     public function generateMDN($exception = null) {
