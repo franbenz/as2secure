@@ -25,7 +25,7 @@
  * along with AS2Secure.
  * 
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.0
+ * @version 0.8.1
  * 
  */
 
@@ -42,13 +42,8 @@ class AS2Client {
         if (!$request instanceof AS2Message && !$request instanceof AS2MDN) throw new AS2Exception('Unexpected format');
         
         // formatage des entetes
-        $headers = $request->getHeaders();
-        $tmp = array();
-        foreach($headers as $key => $val){
-            $tmp[] = $key.': '.$val;
-        }
-        $headers = $tmp;
-
+        $headers = $request->getHeaders()->toArray(true);
+        
         // initialise les variables de construction pour la recuperation des headers
         $this->response_headers = array();
         $this->response_indice  = 0;
@@ -67,6 +62,7 @@ class AS2Client {
         curl_setopt($ch, CURLOPT_FORBID_REUSE, 1);
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $request->getContent());
+        //var_dump($request->getContent());
         curl_setopt($ch, CURLOPT_USERAGENT, 'AS2Secure Php Lib');
         curl_setopt($ch, CURLOPT_HEADERFUNCTION, array($this, 'handleResponseHeader'));
         // authentication setup
@@ -91,6 +87,7 @@ class AS2Client {
         die();*/
 
         return array('request'      => $request,
+                     'headers'      => $this->response_headers[count($this->response_headers)-1],
                      'response'     => $as2_response,//$response,
                      'info'         => $info);
     }

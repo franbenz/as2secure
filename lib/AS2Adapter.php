@@ -2,13 +2,13 @@
 
 /**
  * AS2Secure - PHP Lib for AS2 message encoding / decoding
- *
+ * 
  * @author  Sebastien MALOT <contact@as2secure.com>
- *
+ * 
  * @copyright Copyright (c) 2010, Sebastien MALOT
- *
+ * 
  * Last release at : {@link http://www.as2secure.com}
- *
+ * 
  * This file is part of AS2Secure Project.
  *
  * AS2Secure is free software: you can redistribute it and/or modify
@@ -23,10 +23,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with AS2Secure.
- *
+ * 
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.0
- *
+ * @version 0.8.1
+ * 
  */
 
 class AS2Adapter {
@@ -96,17 +96,15 @@ class AS2Adapter {
             // execute main operation
             $command = self::$javapath.' -jar '.escapeshellarg(AS2_DIR_BIN.self::$ssl_adapter).
                                        ' extract'.
-                                       ' -in '.escapeshellarg($input);
+                                       ' -in '.escapeshellarg($input).
                                        ' -out '.escapeshellarg($output);
-            
-            $result = self::exec($command, true);
-            
+            $results = self::exec($command, true);
+
             $files = array();
-            $results = explode("\n", $result);
             
             foreach($results as $tmp){
                 $tmp = explode(';', $tmp);
-                if (count($tmp) == 0) continue;
+                if (count($tmp) <= 1) continue;
                 if (count($tmp) != 3) throw new AS2Exception("Unexpected data structure while extracting message");
                 
                 $file = array();
@@ -115,7 +113,7 @@ class AS2Adapter {
                 $file['filename'] = trim($tmp[2], '"');
                 $files[] = $file;
             }
-            
+
             return $files;
         }
         catch(Exception $e) {
@@ -179,7 +177,8 @@ class AS2Adapter {
                                        $compress.
                                        ' -encoding '.escapeshellarg($encoding).
                                        ' -in '.escapeshellarg($input).
-                                       ' -out '.escapeshellarg($output);
+                                       ' -out '.escapeshellarg($output).
+                                       ' >/dev/null';
             $result = self::exec($command);
 
             return $output;
@@ -203,7 +202,8 @@ class AS2Adapter {
                                        ' verify'.
                                        $security.
                                        ' -in '.escapeshellarg($input).
-                                       ' -out '.escapeshellarg($output);
+                                       ' -out '.escapeshellarg($output).
+                                       ' >/dev/null';
 
             // on error, an exception is throw
             $result = self::exec($command);
@@ -268,7 +268,8 @@ class AS2Adapter {
                                        ' decrypt'.
                                        $security.
                                        ' -in '.escapeshellarg($input).
-                                       ' -out '.escapeshellarg($output);
+                                       ' -out '.escapeshellarg($output).
+                                       ' >/dev/null';
 
             $result = $this->exec($command);
 
@@ -306,7 +307,8 @@ class AS2Adapter {
         try {
             $command = self::$javapath.' -jar '.escapeshellarg(AS2_DIR_BIN.self::$ssl_adapter).
                                        ' checksum'.
-                                       ' -in '.escapeshellarg($input);
+                                       ' -in '.escapeshellarg($input).
+                                       ' ';
                                        
             $dump = self::exec($command, true);
             
@@ -529,7 +531,7 @@ class AS2Adapter {
      *
      * @return string       The string in binary format.
      */
-    /*public static function hex2bin($str) {
+    public static function hex2bin($str) {
         $bin = '';
         $i = 0;
         do {
@@ -537,7 +539,7 @@ class AS2Adapter {
             $i += 2;
         } while ($i < strlen($str));
         return $bin;
-    }*/
+    }
     
     /**
      * Determine the mimetype of a file (also called 'Content-Type')

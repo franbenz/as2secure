@@ -25,7 +25,7 @@
  * along with AS2Secure.
  * 
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.0
+ * @version 0.8.1
  * 
  */
 
@@ -144,7 +144,7 @@ class AS2MDN extends AS2Abstract {
         $lines['Reporting-UA']          = 'AS2Secure Php Lib';//$this->getAttribute('reporting-ua');
         if ($this->getPartnerFrom()) {
             $lines['Original-Recipient']    = 'rfc822; ' . $this->getPartnerFrom()->id;
-            $lines['Final-Recipient']       = $this->getAttribute('original-recipient');
+            $lines['Final-Recipient']       = 'rfc822; ' . $this->getPartnerFrom()->id;
         }
         $lines['Original-Message-ID']   = $this->getAttribute('original-message-id');
         $lines['Disposition']           = $this->getAttribute('action-mode') . '/' . $this->getAttribute('sending-mode') . '; ' . $this->getAttribute('disposition-type');
@@ -158,14 +158,6 @@ class AS2MDN extends AS2Abstract {
 
         $mdn = new Horde_MIME_Part('message/disposition-notification', $content, MIME_DEFAULT_CHARSET, null, '7bit');
         $container->addPart($mdn);
-        
-        $this->path = AS2Adapter::getTempFilename();
-        file_put_contents($this->path, $container->toString());
-        
-        // signing if requested
-        if ($message && $message->getHeader('Disposition-Notification-Options')) {
-            $this->path = $this->adapter->sign($this->path);
-        }
 
         $this->setMessageId(self::generateMessageID($this->getPartnerFrom()));
 
@@ -202,7 +194,25 @@ class AS2MDN extends AS2Abstract {
             $headers['Recipient-Address'] = $this->getPartnerFrom()->send_url;
         }
 
-        $this->headers = $headers;
+        $this->headers = new AS2Header($headers);
+
+        $this->path = AS2Adapter::getTempFilename();
+        
+        // signing if requested
+        if ($message && $message->getHeader('Disposition-Notification-Options')) {
+            file_put_contents($this->path, $container->toCanonicalString(true));
+            $this->path = $this->adapter->sign($this->path);
+
+            $content = file_get_contents($this->path);
+            $this->headers->addHeadersFromMessage($content);
+
+            if (strpos($content, "\n\n") !== false) $content = substr($content, strpos($content, "\n\n") + 2);
+            file_put_contents($this->path, ltrim($content));
+        }
+        else {
+            file_put_contents($this->path, $container->toCanonicalString(false));
+            $content = $container->toString();
+        }
     }
     
     public function decode(){

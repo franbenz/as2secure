@@ -25,7 +25,7 @@
  * along with AS2Secure.
  *
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.0
+ * @version 0.8.1
  *
  */
 
@@ -61,7 +61,7 @@ class AS2Server {
                 $filename = self::saveMessage($data, $headers);
                 
                 // request building
-                $request = new AS2Request($data, $headers->getHeaders()); // TODO : implement AS2Header into AS2Request
+                $request = new AS2Request($data, $headers); // TODO : implement AS2Header into AS2Request
                 
                 // warning / notification
                 if (trim($headers->getHeader('as2-from')) == trim($headers->getHeader('as2-to'))) AS2Log::warning($headers->getHeader('message-id'), 'The AS2-To name is identical to the AS2-From name.');
@@ -116,7 +116,7 @@ class AS2Server {
             catch(Exception $e){
                 $params = array('partner_from' => $headers->getHeader('as2-from'),
                                 'partner_to'   => $headers->getHeader('as2-to'));
-                $mdn = new AS2MDN($e);
+                $mdn = new AS2MDN($e, $params);
                 $mdn->setAttribute('original-message-id', $headers->getHeader('message-id'));
                 $mdn->encode();
             }
@@ -124,30 +124,24 @@ class AS2Server {
             if ($mdn){
                 if (!$headers->getHeader('receipt-delivery-option')) {
                     // SYNC method
-                    $mdn_headers = $mdn->getHeaders();
-                    foreach($mdn_headers as $key => $value)
-                        header($key.': '.$value);
-                    echo $mdn->getContent();
+                    file_put_contents('/tmp/output', "-------------------------------------------------------------------\n");
+                    foreach($mdn->getHeaders() as $key => $value) {
+                        $header = str_replace(array("\r", "\n", "\r\n"), '', $key.': '.$value);
+                        file_put_contents('/tmp/output', $header."\n", FILE_APPEND);
+                        header($header);
+                    }
+
+                    file_put_contents('/tmp/output', "-------------------------------------------------------------------\n", FILE_APPEND);
+                    $content = $mdn->getContent();
+                    file_put_contents('/tmp/output', $content, FILE_APPEND);
+                    echo $content;
                     AS2Log::info(false, 'An AS2 MDN has been sent.');
                 }
                 else {
                     // ASYNC method
 
                     // cut connexion and wait a few seconds
-                    ob_end_clean();
-                    header("Connection: close\r\n");
-                    header("Content-Encoding: none\r\n");
-                    ignore_user_abort(true); // optional
-                    ob_start();
-                    $size = ob_get_length();
-                    header("Content-Length: $size");
-                    ob_end_flush();     // Strange behaviour, will not work
-                    flush();            // Unless both are called !
-                    ob_end_clean();
-                    session_write_close();
-
-                    // wait 5 seconds before sending MDN notification
-                    sleep(5);
+                    self::killConnectionAndSleep(5);
 
                     // send mdn
                     $client = new AS2Client();
@@ -239,5 +233,23 @@ class AS2Server {
         }
 
         return $filename;
+    }
+    
+    protected static function killConnectionAndSleep($sleep) {
+        // cut connexion and wait a few seconds
+        ob_end_clean();
+        header("Connection: close\r\n");
+        header("Content-Encoding: none\r\n");
+        ignore_user_abort(true); // optional
+        ob_start();
+        $size = ob_get_length();
+        header("Content-Length: $size");
+        ob_end_flush();     // Strange behaviour, will not work
+        flush();            // Unless both are called !
+        ob_end_clean();
+        session_write_close();
+        
+        // wait some seconds before sending MDN notification
+        sleep($sleep);
     }
 }

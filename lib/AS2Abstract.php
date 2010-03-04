@@ -25,7 +25,7 @@
  * along with AS2Secure.
  *
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.0
+ * @version 0.8.1
  *
  */
 
@@ -37,7 +37,7 @@ abstract class AS2Abstract {
     protected $mimetype = null;
     protected $path = null;
     protected $files = array();
-    protected $headers = array();
+    protected $headers = null;
     protected $message_id = '';
     
     protected $is_signed = false;
@@ -47,6 +47,9 @@ abstract class AS2Abstract {
     protected $partner_to = null;
     
     public function __construct($data, $params = array()) {
+        if (is_null($this->headers))
+            $this->headers = new AS2Header();
+        
         if (is_array($data)) {
             $this->path = $data;
         }
@@ -128,10 +131,7 @@ abstract class AS2Abstract {
     }
     
     public function getHeader($token) {
-        $token = strtolower($token);
-        $tmp = array_change_key_case($this->headers);
-        if (isset($tmp[$token])) return $tmp[$token];
-        return false;
+        return $this->headers->getHeader($token);
     }
     
     public function getAuthentication() {

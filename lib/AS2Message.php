@@ -25,7 +25,7 @@
  * along with AS2Secure.
  * 
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.0
+ * @version 0.8.1
  * 
  */
 
@@ -140,7 +140,7 @@ class AS2Message extends AS2Abstract {
             try {
                 $file = $this->adapter->sign($file, $this->getPartnerTo()->send_compress, $this->getPartnerTo()->send_encoding);
                 $this->is_signed = true;
-
+                
                 $this->mic_checksum = AS2Adapter::getMicChecksum($file);
             }
             catch(Exception $e) {
@@ -191,18 +191,14 @@ class AS2Message extends AS2Abstract {
             $headers['Receipt-Delivery-Option'] = $this->getPartnerFrom()->send_url;
         }
         
-        if ($this->is_crypted) {
-            $headers['Content-Type']         = 'application/pkcs7-mime; smime-type=enveloped-data; name=smime.p7m';
-            $headers['Content-Disposition'] = 'attachment; filename="smime.p7m"';
-        }
-        elseif ($this->is_signed) {
-            $headers['Content-Type']         = 'multipart/signed; protocol="application/pkcs7-signature"; micalg=sha1';
-            $headers['Content-Disposition'] = 'attachment; filename="smime.p7m"';
-        }
-        else {
-            // allowed ???
-        }
-        $this->headers = $headers;
+        $this->headers = new AS2Header($headers);
+
+        // look for additionnal headers from message
+        // eg : content-type
+        $content = file_get_contents($this->path);
+        $this->headers->addHeadersFromMessage($content);
+        if (strpos($content, "\n\n") !== false) $content = substr($content, strpos($content, "\n\n") + 2);
+        file_put_contents($this->path, $content);
         
         return true;
     }
@@ -245,6 +241,8 @@ class AS2Message extends AS2Abstract {
             $mdn->setAttribute('Disposition-Type', 'failure');
             $mdn->setAttribute('Disposition-Modifier', $exception->getLevel().': '.$exception->getMessageShort());
         }
+
+        file_put_contents('/tmp/mic', print_r($this, true));
 
         return $mdn;
     }
