@@ -25,7 +25,7 @@
  * along with AS2Secure.
  * 
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.1
+ * @version 0.8.2
  * 
  */
 
@@ -62,7 +62,6 @@ class AS2Client {
         curl_setopt($ch, CURLOPT_FORBID_REUSE, 1);
         curl_setopt($ch, CURLOPT_POST, 1);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $request->getContent());
-        //var_dump($request->getContent());
         curl_setopt($ch, CURLOPT_USERAGENT, 'AS2Secure Php Lib');
         curl_setopt($ch, CURLOPT_HEADERFUNCTION, array($this, 'handleResponseHeader'));
         // authentication setup

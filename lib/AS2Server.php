@@ -25,7 +25,7 @@
  * along with AS2Secure.
  *
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.1
+ * @version 0.8.2
  *
  */
 
@@ -124,17 +124,13 @@ class AS2Server {
             if ($mdn){
                 if (!$headers->getHeader('receipt-delivery-option')) {
                     // SYNC method
-                    file_put_contents('/tmp/output', "-------------------------------------------------------------------\n");
                     foreach($mdn->getHeaders() as $key => $value) {
                         $header = str_replace(array("\r", "\n", "\r\n"), '', $key.': '.$value);
-                        file_put_contents('/tmp/output', $header."\n", FILE_APPEND);
                         header($header);
                     }
 
-                    file_put_contents('/tmp/output', "-------------------------------------------------------------------\n", FILE_APPEND);
-                    $content = $mdn->getContent();
-                    file_put_contents('/tmp/output', $content, FILE_APPEND);
-                    echo $content;
+                    echo $mdn->getContent();
+
                     AS2Log::info(false, 'An AS2 MDN has been sent.');
                 }
                 else {

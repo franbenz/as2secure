@@ -2,13 +2,13 @@
 
 /**
  * AS2Secure - PHP Lib for AS2 message encoding / decoding
- * 
+ *
  * @author  Sebastien MALOT <contact@as2secure.com>
- * 
+ *
  * @copyright Copyright (c) 2010, Sebastien MALOT
- * 
+ *
  * Last release at : {@link http://www.as2secure.com}
- * 
+ *
  * This file is part of AS2Secure Project.
  *
  * AS2Secure is free software: you can redistribute it and/or modify
@@ -23,10 +23,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with AS2Secure.
- * 
+ *
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.1
- * 
+ * @version 0.8.2
+ *
  */
 
 class AS2Request extends AS2Abstract {
@@ -61,12 +61,19 @@ class AS2Request extends AS2Abstract {
 
         if ($mimetype == 'application/pkcs7-mime' || $mimetype == 'application/x-pkcs7-mime'){
             try {
-                $content = $this->getHeaders(true);
-                $content .= "\n\n" . file_get_contents($this->getPath());
-                $mime_part = Horde_MIME_Structure::parseTextMIMEMessage($content);
+                $content = $this->getHeaders(true) . "\n\n";
+                /*$content = 'Content-Type: application/pkcs7-mime; smime-type="enveloped-data"; name="smime.p7m"' . "\r\n" .
+                           'Content-Disposition: attachment; filename="smime.p7m"' . "\r\n" .
+                           'Content-Transfer-Encoding: base64' . "\r\n\n";*/
+                $content .= file_get_contents($this->getPath());
 
                 $input = AS2Adapter::getTempFilename();
+//                file_put_contents($input, $content);
+//                file_put_contents('/tmp/crypted', $content);
+
+                $mime_part = Horde_MIME_Structure::parseTextMIMEMessage($content);
                 file_put_contents($input, $mime_part->toString(true));
+                file_put_contents('/tmp/crypted', $mime_part->toString(true));
 
                 // get input file and returns decrypted file
                 // throw an exception on error
@@ -107,11 +114,11 @@ class AS2Request extends AS2Abstract {
         $crypted = false;
         if (strtolower($mimetype) == 'application/pkcs7-mime'){
             try {
-                // rewrite message
-                /*$content   = file_get_contents($input);
+                // rewrite message into base64 encoding
+                $content   = file_get_contents($input);
                 $mime_part = Horde_MIME_Structure::parseTextMIMEMessage($content);
                 $input     = AS2Adapter::getTempFilename();
-                file_put_contents($input, $mime_part->toString(true));*/
+                file_put_contents($input, $mime_part->toString(true));
 
                 AS2Log::info(false, 'AS2 message is encrypted.');
                 $input = $this->adapter->decrypt($input);

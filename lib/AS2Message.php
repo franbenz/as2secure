@@ -25,7 +25,7 @@
  * along with AS2Secure.
  * 
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.1
+ * @version 0.8.2
  * 
  */
 
@@ -241,8 +241,6 @@ class AS2Message extends AS2Abstract {
             $mdn->setAttribute('Disposition-Type', 'failure');
             $mdn->setAttribute('Disposition-Modifier', $exception->getLevel().': '.$exception->getMessageShort());
         }
-
-        file_put_contents('/tmp/mic', print_r($this, true));
 
         return $mdn;
     }

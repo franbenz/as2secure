@@ -2,13 +2,13 @@
 
 /**
  * AS2Secure - PHP Lib for AS2 message encoding / decoding
- * 
+ *
  * @author  Sebastien MALOT <contact@as2secure.com>
- * 
+ *
  * @copyright Copyright (c) 2010, Sebastien MALOT
- * 
+ *
  * Last release at : {@link http://www.as2secure.com}
- * 
+ *
  * This file is part of AS2Secure Project.
  *
  * AS2Secure is free software: you can redistribute it and/or modify
@@ -23,10 +23,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with AS2Secure.
- * 
+ *
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.1
- * 
+ * @version 0.8.2
+ *
  */
 
 class AS2Adapter {
@@ -35,6 +35,7 @@ class AS2Adapter {
      * for overriding PATH usage
      */
     public static $ssl_adapter  = 'AS2Secure.jar';
+    public static $ssl_openssl  = 'openssl';
     public static $javapath = 'java';
     
     protected $partner_from = null;
@@ -228,11 +229,34 @@ class AS2Adapter {
         $output = self::getTempFilename();
 
         try {
-            if ($this->partner_to->sec_pkcs12)
+            if (!$this->partner_to->sec_certificate)
+                $certificate = self::getPublicFromPKCS12($this->partner_to->sec_pkcs12, $this->partner_to->sec_pkcs12_password);
+            else
+                $certificate = $this->partner_to->sec_certificate;
+
+            $command = self::$ssl_openssl . ' smime -encrypt' .
+                                                  ' -in ' . escapeshellarg($input) .
+                                                  ' -out ' . escapeshellarg($output) .
+                                                  ' -des3 ' . escapeshellarg($certificate);
+            $result = $this->exec($command);
+
+            $headers = 'Content-Type: application/pkcs7-mime; smime-type="enveloped-data"; name="smime.p7m"' . "\n" .
+                       'Content-Disposition: attachment; filename="smime.p7m"' . "\n" .
+                       'Content-Transfer-Encoding: binary' . "\n\n";
+            $content = file_get_contents($output);
+
+            // we remove header auto-added by openssl
+            $content = substr($content, strpos($content, "\n\n") + 2);
+            $content = base64_decode($content);
+
+            $content = $headers . $content;
+            file_put_contents($output, $content);
+
+            /*if ($this->partner_to->sec_pkcs12)
                 $security = ' -pkcs12 '.escapeshellarg($this->partner_to->sec_pkcs12).
                             ($this->partner_to->sec_pkcs12_password?' -password '.escapeshellarg($this->partner_to->sec_pkcs12_password):' -nopassword');
-             else
-                 $security = ' -cert '.escapeshellarg($this->partner_to->sec_certificate);
+            else
+                $security = ' -cert '.escapeshellarg($this->partner_to->sec_certificate);
             
             $command = self::$javapath.' -jar '.escapeshellarg(AS2_DIR_BIN.self::$ssl_adapter).
                                        ' encrypt'.
@@ -241,7 +265,7 @@ class AS2Adapter {
                                        ' -in '.escapeshellarg($input).
                                        ' -out '.escapeshellarg($output);
 
-            $result = $this->exec($command);
+            $result = $this->exec($command);*/
 
             return $output;
         }
@@ -260,8 +284,19 @@ class AS2Adapter {
     public function decrypt($input){
         $output = self::getTempFilename();
 
+        /*file_put_contents('/tmp/decrypt', '---------------------------------------------------------------'."\n", FILE_APPEND);
+        file_put_contents('/tmp/decrypt', 'try to decrypt file :'."\n", FILE_APPEND);
+        file_put_contents('/tmp/decrypt', '---------------------------------------------------------------'."\n", FILE_APPEND);
+        file_put_contents('/tmp/decrypt', print_r(file_get_contents($input), true)."\n", FILE_APPEND);*/
+
         try {
-            $security = ' -pkcs12 '.escapeshellarg($this->partner_to->sec_pkcs12).
+            $private_key = self::getPrivateFromPKCS12($this->partner_to->sec_pkcs12, $this->partner_to->sec_pkcs12_password, '');
+            if (!$private_key) throw new AS2Exception('Unable to extract private key from PKCS12 file. ('.$this->partner_to->sec_pkcs12.' - using:'.$this->partner_to->sec_pkcs12_password.')');
+
+            $command = self::$ssl_openssl.' smime -decrypt -in '.escapeshellarg($input).' -inkey '.escapeshellarg($private_key).' -out '.escapeshellarg($output);
+
+            // seems to generate non-conform message
+            /*$security = ' -pkcs12 '.escapeshellarg($this->partner_to->sec_pkcs12).
                 ($this->partner_to->sec_pkcs12_password?' -password '.escapeshellarg($this->partner_to->sec_pkcs12_password):' -nopassword');
 
             $command = self::$javapath.' -jar '.escapeshellarg(AS2_DIR_BIN.self::$ssl_adapter).
@@ -269,7 +304,7 @@ class AS2Adapter {
                                        $security.
                                        ' -in '.escapeshellarg($input).
                                        ' -out '.escapeshellarg($output).
-                                       ' >/dev/null';
+                                       ' >/dev/null';*/
 
             $result = $this->exec($command);
 
@@ -328,11 +363,11 @@ class AS2Adapter {
      *
      * @return string                The file which contains the Private Certificate
      */
-    /*public static function getPrivateFromPKCS12($input, $password = '', $new_password = ''){
+    public static function getPrivateFromPKCS12($input, $password = '', $new_password = ''){
         $output = self::getTempFilename();
         
         try {
-            $command = self::$ssl_adapter.' pkcs12 -in '.escapeshellarg($input).' -out '.escapeshellarg($output).' -nocerts';
+            $command = self::$ssl_openssl.' pkcs12 -in '.escapeshellarg($input).' -out '.escapeshellarg($output).' -nocerts';
             if ($password){
                 $command .= ' -passin stdin';
                 if ($new_password){
@@ -360,9 +395,10 @@ class AS2Adapter {
             return $output;
         }
         catch(Exception $e){
+            throw $e;
             return false;
         }
-    }*/
+    }
     
     /**
      * Extract Public certificate from a PKCS12 Certificate
@@ -372,7 +408,7 @@ class AS2Adapter {
      *
      * @return string            The file which contains the Public Certificate
      */
-    /*public static function getPublicFromPKCS12($input, $password = ''){
+    public static function getPublicFromPKCS12($input, $password = ''){
         $output = self::getTempFilename();
         
         try {
@@ -398,8 +434,8 @@ class AS2Adapter {
         catch(Exception $e){
             return false;
         }
-    }*/
-    
+    }
+
     /**
      * Extract CA from a PKCS12 Certificate
      *
