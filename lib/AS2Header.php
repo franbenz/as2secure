@@ -25,7 +25,7 @@
  * along with AS2Secure.
  *
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.2
+ * @version 0.8.4
  *
  */
 
@@ -43,19 +43,41 @@ class AS2Header implements Countable, ArrayAccess, Iterator {
         }
     }
 
+    /**
+     * Reset all current headers with new values
+     * 
+     * @param array $headers    The new headers to use
+     */
     public function setHeaders($headers) {
-        $this->headers = $headers;
+        $this->headers = array();
+        $this->addHeaders($headers);
     }
 
+    /**
+     * Add new header (or override current one)
+     * 
+     * @param string $key    The name of the header
+     * @param string $value  The value of the header 
+     */
     public function addHeader($key, $value) {
-        $this->headers[$key] = $value;
+        $this->headers[$key] = "$value";
     }
 
+    /**
+     * Add a set of headers (or override currents)
+     * 
+     * @param array $headers    The new headers to use
+     */
     public function addHeaders($values) {
         foreach($values as $key => $value)
-            $this->headers[$key] = $value;
+            $this->addHeader($key, $value);
     }
 
+    /**
+     * Add a set of headers extracted from a mime message
+     * 
+     * @param string $message   The message content to use
+     */
     public function addHeadersFromMessage($message) {
         $headers = self::parseText($message);
         if (count($headers)){
@@ -64,42 +86,77 @@ class AS2Header implements Countable, ArrayAccess, Iterator {
         }
     }
 
+    /**
+     * Remove an header
+     * 
+     * @param string $key  The name of the header
+     */
     public function removeHeader($key) {
         unset($this->headers[$key]);
     }
 
+    /**
+     * Return all headers as an array
+     * 
+     * @return array   The headers, eg: array(name1 => value1, name2 => value2)
+     */
     public function getHeaders() {
         return $this->headers;
     }
 
-    public function toArray($compact = false) {
-        if ($compact) {
-            $tmp = array();
-            foreach($this->headers as $key => $val){
-                $tmp[] = $key.': '.$val;
-            }
-            return $tmp;
+    /**
+     * Return all headers as a formatted array
+     * 
+     * @return array   The headers, eg: array(0 => name1:value1, 1 => name2:value2)
+     */
+    public function toFormattedArray() {
+        $tmp = array();
+        foreach($this->headers as $key => $val){
+            $tmp[] = $key.': '.$val;
         }
-        else
-            return $this->headers;
+        return $tmp;
     }
 
-    public function getHeader($token) {
-        $token = strtolower($token);
+    /**
+     * Return the value of an header
+     * 
+     * @param string $key    The header
+     * 
+     * @return string        The value corresponding
+     */
+    public function getHeader($key) {
+        $key = strtolower($key);
         $tmp = array_change_key_case($this->headers);
-        if (isset($tmp[$token])) return $tmp[$token];
+        if (isset($tmp[$key])) return $tmp[$key];
         return false;
     }
 
+    /**
+     * Return the count of headers
+     * 
+     * @return int
+     */
     public function count() {
         return count($this->headers);
     }
 
+    /**
+     * Check if an header exists
+     * 
+     * @param string $key   The header to check existance
+     * 
+     * @return boolean
+     */
     public function exists($key) {
         $tmp = array_change_key_case($this->headers);
         return array_key_exists(strtolower($key), $tmp);
     }
 
+    /**
+     * Magic method that returns headers serialized as in mime message
+     * 
+     * @return string
+     */
     public function __toString() {
         $ret = '';
 
@@ -110,7 +167,10 @@ class AS2Header implements Countable, ArrayAccess, Iterator {
         return rtrim($ret);
     }
 
-    // ArrayAccess
+    /***************************/
+    /** ArrayAccess interface **/
+    /***************************/
+    
     public function offsetExists($offset) {
         return array_key_exists($this->headers, $offset);
     }
@@ -127,7 +187,10 @@ class AS2Header implements Countable, ArrayAccess, Iterator {
         unset($this->headers[$offset]);
     }
 
-    // Iterator
+    /************************/
+    /** Iterator interface **/
+    /************************/
+    
     public function current() {
         return $this->headers[$this->key()];
     }
@@ -149,32 +212,48 @@ class AS2Header implements Countable, ArrayAccess, Iterator {
         return ($this->_position >= 0 && $this->_position < count($this->headers));
     }
 
+    /**
+     * Extract headers from mime message and return a new instance of AS2Header
+     * 
+     * @param string  The content to parse
+     * 
+     * @return object  AS2Header instance
+     */
     public static function parseText($text) {
-        $headers = array();
-        if (strpos($text, "\n\n") !== false) $text = substr($text, 0, strpos($text, "\n\n")) . "\n";
+        if (strpos($text, "\n\n") !== false) $text = substr($text, 0, strpos($text, "\n\n"));
+        $text = rtrim($text) . "\n";
 
         $matches = array();
         preg_match_all('/(.*?):\s*(.*?\n(\s.*?\n)*)/', $text, $matches);
         if ($matches) {
-            foreach($matches[2] as &$value) $value = str_replace(array("\r", "\n"), ' ', $value);
+            foreach($matches[2] as &$value) $value = trim(str_replace(array("\r", "\n"), ' ', $value));
             unset($value);
-            if (count($matches[1]) && count($matches[1]) == count($matches[2]))
+            if (count($matches[1]) && count($matches[1]) == count($matches[2])) {
                 $headers = array_combine($matches[1], $matches[2]);
+                return new self($headers);
+            }
         }
 
-        return new self($headers);
+        return new self();
     }
 
+    /**
+     * Extract headers from http request and return a new instance of AS2Header
+     * 
+     * @param string  The content to parse
+     * 
+     * @return object  AS2Header instance
+     */
     public static function parseHttpRequest() {
         /**
          * Fix to get request headers from Apache even on PHP running as a CGI
-         *
          */
         if( !function_exists('apache_request_headers') ) {
             $headers = array();
 
             foreach($_SERVER as $key => $value){
                 if (strpos('HTTP_', $key) === 0){
+                    // 5 is to remove 'HTTP_'
                     $key = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($key, 5)))));
                     $headers[$key] = $value;
                 }

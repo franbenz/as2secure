@@ -25,7 +25,7 @@
  * along with AS2Secure.
  * 
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.2
+ * @version 0.8.4
  * 
  */
 
@@ -150,8 +150,8 @@ class AS2Partner {
         $partner_id = trim($partner_id, '"');
         
         // existance file check (caution : Partner name is case sensitive)
-        $conf = AS2_DIR_PARTNERS.basename($partner_id).'.conf';
-        if (!file_exists($conf)) throw new AS2Exception('The partner doesn\'t exist : '.$partner_id);
+        $conf = AS2_DIR_PARTNERS . basename($partner_id) . '.conf';
+        if (!file_exists($conf)) throw new AS2Exception('The partner doesn\'t exist : "' . $partner_id . '".');
         
         // get from stack instance
         if (!$reload && isset(self::$stack[$partner_id])){
@@ -173,7 +173,7 @@ class AS2Partner {
         }
         
         // error if not found
-        throw new AS2Exception('The partner profile isn\'t correctly loaded');
+        throw new AS2Exception('The partner profile isn\'t correctly loaded.');
     }
 
     /**

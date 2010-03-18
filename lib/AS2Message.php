@@ -25,7 +25,7 @@
  * along with AS2Secure.
  * 
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.2
+ * @version 0.8.4
  * 
  */
 
@@ -55,7 +55,17 @@ class AS2Message extends AS2Abstract {
         }
     }
 
-    public function addFile($data, $mimetype = '', $filename = '', $is_file = true, $encoding = ''){
+    /**
+     * Add file to the message
+     * 
+     * @param string  $data        The content or the file
+     * @param string  $mimetype    The mimetype of the message
+     * @param boolean $is_file     If file
+     * @param string  $encoding    The encoding to use for transfert
+     * 
+     * @return boolean
+     */
+    public function addFile($data, $mimetype = '', $filename = '', $is_file = true, $encoding = 'binary'){
         if (!$is_file){
             $file    = AS2Adapter::getTempFilename();
             file_put_contents($file, $data);
@@ -75,24 +85,48 @@ class AS2Message extends AS2Abstract {
         return true;
     }
 
+    /**
+     * Return files which compose the message (should contain at least one file)
+     * 
+     * @return array
+     */
     public function getFiles(){
         return $this->files;
     }
     
+    /**
+     * Return the last calculated checksum
+     * 
+     * @return string
+     */
     public function getMicChecksum() {
         return $this->mic_checksum;
     }
     
+    /**
+     * Return the url to send message
+     * 
+     * @return string
+     */
     public function getUrl() {
         return $this->getPartnerTo()->send_url;
     }
     
+    /**
+     * Return the authentication to use to send message to the partner
+     * 
+     * @return array
+     */
     public function getAuthentication() {
         return array('method'   => $this->getPartnerTo()->send_credencial_method,
                      'login'    => $this->getPartnerTo()->send_credencial_login,
                      'password' => $this->getPartnerTo()->send_credencial_password);
     }
     
+    /**
+     * Build message and encode it (signing and/or crypting)
+     * 
+     */
     public function encode() {
         if (!$this->getPartnerFrom() instanceof AS2Partner || !$this->getPartnerTo() instanceof AS2Partner)
             throw new AS2Exception('Object not properly initialized');
@@ -113,6 +147,8 @@ class AS2Message extends AS2Abstract {
                 $mime_part = new Horde_MIME_Part($file['mimetype']);
                 $mime_part->setContents(file_get_contents($file['path']));
                 $mime_part->setName($file['filename']);
+                if ($file['encoding'])
+                    $mime_part->setTransferEncoding($file['encoding']);
 
                 $parts[] = $mime_part;
             }
@@ -141,6 +177,7 @@ class AS2Message extends AS2Abstract {
                 $file = $this->adapter->sign($file, $this->getPartnerTo()->send_compress, $this->getPartnerTo()->send_encoding);
                 $this->is_signed = true;
                 
+                //echo file_get_contents($file);
                 $this->mic_checksum = AS2Adapter::getMicChecksum($file);
             }
             catch(Exception $e) {
@@ -150,7 +187,7 @@ class AS2Message extends AS2Abstract {
         }
 
         // crypting file if wanted by Partner_To
-        if ($this->getPartnerTo()->sec_encrypt_algorithm   != AS2Partner::CRYPT_NONE) {
+        if ($this->getPartnerTo()->sec_encrypt_algorithm != AS2Partner::CRYPT_NONE) {
             try {
                 $file = $this->adapter->encrypt($file);
                 $this->is_crypted = true;
@@ -180,7 +217,7 @@ class AS2Message extends AS2Abstract {
              'Mime-Version'                 => '1.0',
              'Disposition-Notification-To'  => $this->getPartnerFrom()->send_url,
              'Recipient-Address'            => $this->getPartnerTo()->send_url,
-             'User-Agent'                   => 'AS2Secure Php Lib',
+             'User-Agent'                   => 'AS2Secure - PHP Lib for AS2 message encoding / decoding',
         );
         
         if ($this->getPartnerTo()->mdn_signed) {
@@ -203,18 +240,24 @@ class AS2Message extends AS2Abstract {
         return true;
     }
     
+    /**
+     * Decode message extracting files from message
+     * 
+     * @return array    List of files extracted
+     */
     public function decode() {
         $this->files = $this->adapter->extract($this->getPath());
-        
-        // schedule file deletion
-        foreach($this->files as $file)
-            AS2Adapter::addTempFileForDelete($file['path']);
-        
-        //echo 'nb payloads : '.count($this->files);
         
         return true;
     }
     
+    /**
+     * Generate a MDN from the message
+     * 
+     * @param object  $exception   The exception if error handled
+     * 
+     * @return object              The MDN generated
+     */
     public function generateMDN($exception = null) {
         $mdn = new AS2MDN($this);
 
@@ -222,9 +265,8 @@ class AS2Message extends AS2Abstract {
         $partner    = $this->getPartnerTo()->id;
         $mic        = $this->getMicChecksum();
 
-        //$mdn->setAttribute('Reporting-UA', 'AS2Secure Php Lib');
-        $mdn->setAttribute('Original-Recipient', 'rfc822; '.$partner);
-        $mdn->setAttribute('Final-Recipient', 'rfc822; '.$partner);
+        $mdn->setAttribute('Original-Recipient',  'rfc822; "' . $partner . '"');
+        $mdn->setAttribute('Final-Recipient',     'rfc822; "' . $partner . '"');
         $mdn->setAttribute('Original-Message-ID', $message_id);
         if ($mic)
             $mdn->setAttribute('Received-Content-MIC', $mic);
@@ -239,7 +281,7 @@ class AS2Message extends AS2Abstract {
 
             $mdn->setMessage($exception->getMessage());
             $mdn->setAttribute('Disposition-Type', 'failure');
-            $mdn->setAttribute('Disposition-Modifier', $exception->getLevel().': '.$exception->getMessageShort());
+            $mdn->setAttribute('Disposition-Modifier', $exception->getLevel() . ': ' . $exception->getMessageShort());
         }
 
         return $mdn;

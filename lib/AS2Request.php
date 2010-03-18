@@ -61,19 +61,12 @@ class AS2Request extends AS2Abstract {
 
         if ($mimetype == 'application/pkcs7-mime' || $mimetype == 'application/x-pkcs7-mime'){
             try {
-                $content = $this->getHeaders(true) . "\n\n";
-                /*$content = 'Content-Type: application/pkcs7-mime; smime-type="enveloped-data"; name="smime.p7m"' . "\r\n" .
-                           'Content-Disposition: attachment; filename="smime.p7m"' . "\r\n" .
-                           'Content-Transfer-Encoding: base64' . "\r\n\n";*/
+                $content  = $this->getHeaders(true) . "\n\n";
                 $content .= file_get_contents($this->getPath());
 
                 $input = AS2Adapter::getTempFilename();
-//                file_put_contents($input, $content);
-//                file_put_contents('/tmp/crypted', $content);
-
                 $mime_part = Horde_MIME_Structure::parseTextMIMEMessage($content);
                 file_put_contents($input, $mime_part->toString(true));
-                file_put_contents('/tmp/crypted', $mime_part->toString(true));
 
                 // get input file and returns decrypted file
                 // throw an exception on error
@@ -92,13 +85,11 @@ class AS2Request extends AS2Abstract {
     
     public function getObject() {
         // setup of full message
-        $content = $this->getHeaders(true);
-        $content .= "\n\n" . file_get_contents($this->getPath());
+        $content  = $this->getHeaders(true) . "\n\n";
+        $content .= file_get_contents($this->getPath());
         $input = AS2Adapter::getTempFilename();
         file_put_contents($input, $content);
         
-        //$input = $this->getPath();
-
         // setup of mailmime decoder
         $params = array('include_bodies' => false,
                         'decode_headers' => true,
@@ -108,7 +99,7 @@ class AS2Request extends AS2Abstract {
                         );
         $decoder   = new Mail_mimeDecode(file_get_contents($input));
         $structure = $decoder->decode($params);
-        $mimetype  = $structure->ctype_primary.'/'.$structure->ctype_secondary;
+        $mimetype  = $structure->ctype_primary . '/' . $structure->ctype_secondary;
 
         // handle crypted content
         $crypted = false;
@@ -122,13 +113,13 @@ class AS2Request extends AS2Abstract {
 
                 AS2Log::info(false, 'AS2 message is encrypted.');
                 $input = $this->adapter->decrypt($input);
-                AS2Log::info(false, 'The data has been decrypted using the key "'.$this->getPartnerTo().'".');
+                AS2Log::info(false, 'The data has been decrypted using the key "' . $this->getPartnerTo() . '".');
                 $crypted = true;
 
                 // reload extracted content to get mimetype
                 $decoder   = new Mail_mimeDecode(file_get_contents($input));
                 $structure = $decoder->decode($params);
-                $mimetype  = $structure->ctype_primary.'/'.$structure->ctype_secondary;
+                $mimetype  = $structure->ctype_primary . '/' . $structure->ctype_secondary;
             }
             catch(Exception $e){
                 throw new AS2Exception($e->getMessage(), 3);
@@ -148,14 +139,14 @@ class AS2Request extends AS2Abstract {
                 $input = $this->adapter->verify($input);
                 $signed = true;
 
-                AS2Log::info(false, 'The sender used the algorithm "'.$structure->ctype_parameters['micalg'].'" to sign the message.');
+                AS2Log::info(false, 'The sender used the algorithm "' . $structure->ctype_parameters['micalg'] . '" to sign the message.');
 
                 // reload extracted content to get mimetype
                 $decoder   = new Mail_mimeDecode(file_get_contents($input));
                 $structure = $decoder->decode($params);
-                $mimetype  = $structure->ctype_primary.'/'.$structure->ctype_secondary;
+                $mimetype  = $structure->ctype_primary . '/' . $structure->ctype_secondary;
                 
-                AS2Log::info(false, 'Using certificate "'.$this->getPartnerFrom().'" to verify signature.');
+                AS2Log::info(false, 'Using certificate "' . $this->getPartnerFrom() . '" to verify signature.');
             }
             catch(Exception $e){
                 throw new AS2Exception($e->getMessage(), 5);
@@ -163,7 +154,7 @@ class AS2Request extends AS2Abstract {
         }
         else {
             // check requested algo
-            $mic = base64_encode(AS2Adapter::hex2bin(sha1_file($input))).', sha1';
+            $mic = AS2Adapter::calculateMicChecksum($input, 'sha1');
         }
 
         // security check
@@ -203,8 +194,8 @@ class AS2Request extends AS2Abstract {
                 case 'multipart/report':
                     $params = array('partner_from' => $this->getPartnerTo(),
                                     'partner_to'   => $this->getPartnerFrom(),
-                                    'is_file'       => false,
-                                    'mic'           => $mic);
+                                    'is_file'      => false,
+                                    'mic'          => $mic);
                     $object = new AS2MDN($mime_part, $params);
                     $object->setHeaders($this->getHeaders());
                     return $object;
@@ -212,8 +203,8 @@ class AS2Request extends AS2Abstract {
                 default:
                     $params = array('partner_from' => $this->getPartnerFrom(),
                                     'partner_to'   => $this->getPartnerTo(),
-                                    'is_file'       => false,
-                                    'mic'           => $mic);
+                                    'is_file'      => false,
+                                    'mic'          => $mic);
                     $object = new AS2Message($mime_part, $params);
                     $object->setHeaders($this->getHeaders());
                     return $object;

@@ -25,7 +25,7 @@
  * along with AS2Secure.
  *
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.2
+ * @version 0.8.4
  *
  */
 
@@ -168,10 +168,13 @@ abstract class AS2Abstract {
         // TODO
     }
     
-    // static protected methods
+    /**
+     * 
+     * 
+     */
     protected static function generateMessageID($partner) {
         if ($partner instanceof AS2Partner) $id = $partner->id;
         else $id = 'unknown';
-        return '<'.uniqid('', true).'@'.round(microtime(true)).'_'.strtolower($id).'_'.php_uname('n').'>';
+        return '<'.uniqid('', true).'@'.round(microtime(true)).'_'.str_replace(' ', '', strtolower($id).'_'.php_uname('n')).'>';
     }
 }

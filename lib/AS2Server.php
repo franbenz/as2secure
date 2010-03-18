@@ -25,12 +25,15 @@
  * along with AS2Secure.
  *
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.2
+ * @version 0.8.4
  *
  */
 
 
 class AS2Server {
+    const TYPE_MESSAGE = 'Message';
+    const TYPE_MDN     = 'MDN';
+
     /**
      * Handle a request (server side)
      * 
@@ -40,6 +43,9 @@ class AS2Server {
      */
     public static function handle($request = null)
     {
+        // handle any problem in case of SYNC MDN process
+        ob_start();
+
         try {
             $error = null;
             
@@ -89,21 +95,21 @@ class AS2Server {
         }
         
         //
+        $mdn = null;
+
         if ($object instanceof AS2Message || (!is_null($error) && !($object instanceof AS2MDN))){
-            $object_type = 'Message';
+            $object_type = self::TYPE_MESSAGE;
             AS2Log::info(false, 'Incoming transmission is a Message.');
             
             try {
-                $mdn = false;
-                
                 if (is_null($error)){
                     $object->decode();
                     $files = $object->getFiles();
-                    AS2Log::info(false, count($files).' payload(s) found in incoming transmission.');
+                    AS2Log::info(false, count($files) . ' payload(s) found in incoming transmission.');
                     foreach($files as $key => $file){
                         $content = file_get_contents($file['path']);
-                        AS2Log::info(false, 'Payload #'.($key+1).' : '.round(strlen($content) / 1024, 2).' KB / "'.$file['filename'].'".');
-                        self::saveMessage($content, array(), $filename.'.payload_'.$key, 'payload');
+                        AS2Log::info(false, 'Payload #' . ($key+1) . ' : ' . round(strlen($content) / 1024, 2) . ' KB / "' . $file['filename'] . '".');
+                        self::saveMessage($content, array(), $filename . '.payload_'.$key, 'payload');
                     }
 
                     $mdn = $object->generateMDN($error);
@@ -120,72 +126,97 @@ class AS2Server {
                 $mdn->setAttribute('original-message-id', $headers->getHeader('message-id'));
                 $mdn->encode();
             }
-            
-            if ($mdn){
-                if (!$headers->getHeader('receipt-delivery-option')) {
-                    // SYNC method
-                    foreach($mdn->getHeaders() as $key => $value) {
-                        $header = str_replace(array("\r", "\n", "\r\n"), '', $key.': '.$value);
-                        header($header);
-                    }
-
-                    echo $mdn->getContent();
-
-                    AS2Log::info(false, 'An AS2 MDN has been sent.');
-                }
-                else {
-                    // ASYNC method
-
-                    // cut connexion and wait a few seconds
-                    self::killConnectionAndSleep(5);
-
-                    // send mdn
-                    $client = new AS2Client();
-                    $result = $client->sendRequest($mdn);
-                    if ($result['info']['http_code'] == '200'){
-                        AS2Log::info(false, 'An AS2 MDN has been sent.');
-                    }
-                    else{
-                        AS2Log::error(false, 'An error occurs while sending MDN message : ' . $result['info']['http_code']);
-                    }
-                }
-            }
         }
         elseif ($object instanceof AS2MDN) {
-            $object_type = 'MDN';
+            $object_type = self::TYPE_MDN;
             AS2Log::info(false, 'Incoming transmission is a MDN.');
         }
         else {
             AS2Log::error(false, 'Malformed data.');
         }
-    
-        if ($request instanceof AS2Request) {
-            // build arguments
-            $params = array('from'   => $headers->getHeader('as2-from'),
-                            'to'     => $headers->getHeader('as2-to'),
-                            'status' => '',
-                            'data'   => '');
-            if ($error) {
-                $params['status'] = AS2Connector::STATUS_ERROR;
-                $params['data']   = array('object'  => $object,
-                                          'error'   => $error);
+        
+        // call Connector object to handle specific actions
+        try {
+            if ($request instanceof AS2Request) {
+                // build arguments
+                $params = array('from'   => $headers->getHeader('as2-from'),
+                                'to'     => $headers->getHeader('as2-to'),
+                                'status' => '',
+                                'data'   => '');
+                if ($error) {
+                    $params['status'] = AS2Connector::STATUS_ERROR;
+                    $params['data']   = array('object'  => $object,
+                                              'error'   => $error);
+                }
+                else {
+                    $params['status'] = AS2Connector::STATUS_OK;
+                    $params['data']   = array('object'  => $object,
+                                              'error'   => null);
+                }
+            
+                // call PartnerTo's connector
+                if ($request->getPartnerTo() instanceof AS2Partner) {
+                    $connector = $request->getPartnerTo()->connector_class;
+                    call_user_func_array(array($connector, 'onReceived' . $object_type), $params);
+                }
+            
+                // call PartnerFrom's connector
+                if ($request->getPartnerFrom() instanceof AS2Partner) {
+                    $connector = $request->getPartnerFrom()->connector_class;
+                    call_user_func_array(array($connector, 'onSent' . $object_type), $params);
+                }
+            }
+        }
+        catch(Exception $e) {
+            $error = $e;
+        }
+
+        // build MDN
+        if (!is_null($error) && $object_type == self::TYPE_MESSAGE) {
+            $params = array('partner_from' => $headers->getHeader('as2-from'),
+                            'partner_to'   => $headers->getHeader('as2-to'));
+            $mdn = new AS2MDN($e, $params);
+            $mdn->setAttribute('original-message-id', $headers->getHeader('message-id'));
+            $mdn->encode();
+        }
+
+        // send MDN
+        if (!is_null($mdn)){
+            if (!$headers->getHeader('receipt-delivery-option')) {
+                // SYNC method
+
+                // re-active output data
+                ob_end_clean();
+
+                // send headers
+                foreach($mdn->getHeaders() as $key => $value) {
+                    $header = str_replace(array("\r", "\n", "\r\n"), '', $key . ': ' . $value);
+                    header($header);
+                }
+                
+                // output MDN
+                echo $mdn->getContent();
+
+                // cut connection to avoid any problem about output
+                self::closeConnectionAndWait(0);
+
+                AS2Log::info(false, 'An AS2 MDN has been sent.');
             }
             else {
-                $params['status'] = AS2Connector::STATUS_OK;
-                $params['data']   = array('object'  => $object,
-                                          'error'   => null);
-            }
-        
-            // call PartnerTo's connector
-            if ($request->getPartnerTo() instanceof AS2Partner) {
-                $connector = $request->getPartnerTo()->connector_class;
-                call_user_func_array(array($connector, 'onReceived' . $object_type), $params);
-            }
-        
-            // call PartnerFrom's connector
-            if ($request->getPartnerFrom() instanceof AS2Partner) {
-                $connector = $request->getPartnerFrom()->connector_class;
-                call_user_func_array(array($connector, 'onSent' . $object_type), $params);
+                // ASYNC method
+
+                // cut connection and wait a few seconds
+                self::closeConnectionAndWait(5);
+
+                // delegate the mdn sending to the client
+                $client = new AS2Client();
+                $result = $client->sendRequest($mdn);
+                if ($result['info']['http_code'] == '200'){
+                    AS2Log::info(false, 'An AS2 MDN has been sent.');
+                }
+                else{
+                    AS2Log::error(false, 'An error occurs while sending MDN message : ' . $result['info']['http_code']);
+                }
             }
         }
         
@@ -231,7 +262,12 @@ class AS2Server {
         return $filename;
     }
     
-    protected static function killConnectionAndSleep($sleep) {
+    /**
+     * Close current HTTP connection and wait some secons 
+     * 
+     * @param int $sleep   The number of seconds to wait for
+     */
+    protected static function closeConnectionAndWait($sleep) {
         // cut connexion and wait a few seconds
         ob_end_clean();
         header("Connection: close\r\n");
