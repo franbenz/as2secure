@@ -25,7 +25,7 @@
  * along with AS2Secure.
  * 
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.4
+ * @version 0.9.0
  * 
  */
 
@@ -65,7 +65,7 @@ class AS2Message extends AS2Abstract {
      * 
      * @return boolean
      */
-    public function addFile($data, $mimetype = '', $filename = '', $is_file = true, $encoding = 'binary'){
+    public function addFile($data, $mimetype = '', $filename = '', $is_file = true, $encoding = 'base64'){
         if (!$is_file){
             $file    = AS2Adapter::getTempFilename();
             file_put_contents($file, $data);

@@ -25,7 +25,7 @@
  * along with AS2Secure.
  *
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.4
+ * @version 0.9.0
  *
  */
 
@@ -84,6 +84,9 @@ class AS2Server {
             }
             elseif (!$request instanceof AS2Request){
                 throw new AS2Exception('Unexpected error occurs while handling AS2 message : bad format');
+            }
+            else {
+                $headers = $request->getHeaders();
             }
             
             $object = $request->getObject();
@@ -197,9 +200,6 @@ class AS2Server {
                 // output MDN
                 echo $mdn->getContent();
 
-                // cut connection to avoid any problem about output
-                self::closeConnectionAndWait(0);
-
                 AS2Log::info(false, 'An AS2 MDN has been sent.');
             }
             else {
@@ -235,7 +235,9 @@ class AS2Server {
      */
     protected static function saveMessage($content, $headers, $filename = '', $type = 'raw'){
         umask(000);
+
         $dir = AS2_DIR_MESSAGES . '_rawincoming';
+        $dir = realpath($dir);
         @mkdir($dir, 0777, true);
         
         if (!$filename) {

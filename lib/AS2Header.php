@@ -25,7 +25,7 @@
  * along with AS2Secure.
  *
  * @license http://www.gnu.org/licenses/lgpl-3.0.html GNU General Public License
- * @version 0.8.4
+ * @version 0.9.0
  *
  */
 
@@ -249,10 +249,11 @@ class AS2Header implements Countable, ArrayAccess, Iterator {
          * Fix to get request headers from Apache even on PHP running as a CGI
          */
         if( !function_exists('apache_request_headers') ) {
-            $headers = array();
+            $headers = array('Content-Type' => $_SERVER['CONTENT_TYPE'],
+                             'Content-Length' => $_SERVER['CONTENT_LENGTH']);
 
             foreach($_SERVER as $key => $value){
-                if (strpos('HTTP_', $key) === 0){
+                if (strpos($key, 'HTTP_') === 0){
                     // 5 is to remove 'HTTP_'
                     $key = str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($key, 5)))));
                     $headers[$key] = $value;
